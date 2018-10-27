@@ -382,78 +382,40 @@ export class Commands {
             });
 
     }
-    addToFavorites = () => {
-        return vscode.commands.registerCommand("favorites.addToFavorites", (fileUri: vscode.Uri, list: any[]) => {
+    public async addItemToFavorites(useGroup: boolean, fileUris: vscode.Uri[]) {
+        const editor = vscode.window.activeTextEditor;
+        if ((fileUris === undefined || fileUris.length === 0) && editor) {
+            fileUris = [editor.document.uri];
+        }
 
-            const isList = Array.isArray(list);
-            const isFile = (fileUri && fileUri.fsPath) != null ? true : false;
-            const isActiveEditor = vscode.window.activeTextEditor != null ? true : false;
+        let groupId : string|null = null;
 
-            if (!isList && isFile) {
-                list = [fileUri];
+        if (useGroup) {
+            const quickPick = await this.favorites.generateGroupQuickPickList();
+            if (quickPick.length === 0) {
+                vscode.window.showWarningMessage("No group definition found. Create group first.");
+                return;
             }
-            if (!isList && !isFile && isActiveEditor) {
-                list = [vscode.window.activeTextEditor.document.uri];
+            const pickedItem = await vscode.window.showQuickPick(quickPick);
+            if (pickedItem == null) {
+                return;
             }
+            groupId = pickedItem.id;
+        }
 
-            const run = async () => {
-
-                for (const uri of list) {
-                    const itemPath = uri.fsPath;
-                    await this.favorites.addPathToGroup(null, itemPath);
-                }
-            };
-
-            run();
-
-        });
+        for (const uri of fileUris.filter(e => e && e instanceof vscode.Uri)) {
+            const itemPath = uri.fsPath;
+            await this.favorites.addPathToGroup(groupId, itemPath);
+        }
     }
-    addToFavoritesGroup = () => {
-        return vscode.commands.registerCommand("favorites.addToFavoritesGroup", (fileUri: vscode.Uri, list: any[]) => {
-            if (!fileUri) {
-                return vscode.window.showWarningMessage("You have to call this extension from explorer");
-            }
-
-            const isList = Array.isArray(list);
-            const isFile = (fileUri && fileUri.fsPath) != null ? true : false;
-
-            if (!isList && isFile) {
-                list = [fileUri];
-            }
-
-            const run = async (group_id: string) => {
-
-                for (const uri of list) {
-                    const itemPath = uri.fsPath;
-                    await this.favorites.addPathToGroup(group_id, itemPath);
-                }
-            };
-
-            this.favorites.generateGroupQuickPickList()
-                .then((result) => {
-
-                    if (result.length === 0) {
-                        vscode.window.showWarningMessage("No group definition found. Create group first.");
-                        return;
-                    }
-                    vscode.window.showQuickPick(result)
-                        .then((pickedItem) => {
-                            if (pickedItem == null) {
-                                // canceled
-                                return;
-                            }
-                            // const itemPath = fileUri.fsPath;
-                            // this.favorites.addPathToGroup(pickedItem.id, itemPath);
-                            run(pickedItem.id);
-                        });
-
-                })
-                .catch((e) => {
-                    console.log(e);
-                });
-
-        });
-    }
+    addToFavorites = () => vscode.commands.registerCommand(
+        "favorites.addToFavorites",
+        async (fileUris: vscode.Uri[]) => await this.addItemToFavorites(false, fileUris)
+    );
+    addToFavoritesGroup = () => vscode.commands.registerCommand(
+        "favorites.addToFavoritesGroup",
+        async (fileUris: vscode.Uri[]) => await this.addItemToFavorites(true, fileUris)
+    );
     collapse = () => {
         return vscode.commands.registerCommand("favorites.collapse", (v) => {
 
